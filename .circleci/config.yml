@@ -1,7 +1,65 @@
 version: 2
 
+workflows:
+  version: 2
+  perf_on_push:
+    jobs:
+      - test
+      - build_bin
+      - perftest_vm
+          requires: build_bin
+  perf_daily:
+    triggers:
+      schedule:
+        #cron: "@daily"
+        # run weekdays at 4am -- note: in cron, tab literals must be used!
+        cron: "0	4	*	*	1-5"
+        filters:
+          branches:
+            only:
+              - perftest-1.x
+              #- master
+              #- master-1.x
+    jobs:
+      - build_bin
+      - perftest_vm
+          requires: build_bin
+
 jobs:
-  build:
+  build_bin:
+    machine:
+      enabled: true
+      docker_layer_caching: true
+    environment:
+      - PARALLELISM: 4 # Amount of parallelism within each test (not the number of tests)
+    parallelism: 3 # How many CircleCI test containers
+    steps:
+      - checkout
+      - run:
+          name: Ensure CircleCI parallelism matches "./test.sh count"
+          command: "[ `./test.sh count` -eq $CIRCLE_NODE_TOTAL ]"
+      - run:
+          name: Execute test
+          command: ./build.sh releng/raw_binaries/Dockerfile
+          no_output_timeout: 1500s
+  #build_container:
+  #build_image:
+  #register_image:
+  #unittest_docker:
+  perftest_vm:
+    machine:
+      enabled: true
+      docker_layer_caching: true
+    #environment:
+      #- PARALLELISM: 4 # Amount of parallelism within each test (not the number of tests)
+    #parallelism: 3 # How many CircleCI test containers
+    steps:
+      - checkout
+      - run:
+          name: Execute test
+          command: echo "Running perftest_vm"
+          no_output_timeout: 1500s
+  test:
     machine:
       enabled: true
       docker_layer_caching: true
